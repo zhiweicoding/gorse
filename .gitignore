@@ -120,3 +120,6 @@ $RECYCLE.BIN/
 .vscode
 
 # End of https://www.gitignore.io/api/go,windows,jetbrains
+
+# Local Gorse sqlite and vector index
+/data/

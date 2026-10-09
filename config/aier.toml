@@ -1,0 +1,65 @@
+# AIER home feed. Gorse only ranks item ids.
+# Start the RESTful server on 8087. The master dashboard stays on 8088.
+#   gorse-master -c config/aier.toml
+#   gorse-server --master-host 127.0.0.1 --master-port 8086 --http-host 0.0.0.0 --http-port 8087
+#   gorse-worker --master-host 127.0.0.1 --master-port 8086
+# This Gorse build stores recommendation cache in RedisSearch (FT._LIST).
+# The local Redis is 5.0.14 and has no RediSearch, so the cache is sqlite.
+# Item rows stay in sqlite under gorse/data. Do not point this file at kitten_ai.
+
+[database]
+cache_store = "sqlite://data/cache.db"
+data_store = "sqlite://data/gorse.db"
+vector_store = "xvec://data/vectors"
+
+[master]
+port = 8086
+host = "0.0.0.0"
+http_port = 8088
+http_host = "127.0.0.1"
+n_jobs = 1
+
+[server]
+default_n = 20
+auto_insert_user = true
+auto_insert_item = true
+cache_expire = "10s"
+api_key = ""
+
+[recommend]
+cache_size = 100
+cache_expire = "72h"
+context_size = 100
+
+[recommend.data_source]
+# star = WorkLike, favorite = WorkFavorite, follow = UserFollow applied to the author's works.
+# watch = finished play. skip = under 1s. not-interested = explicit dismissal. read = any swipe.
+positive_feedback_types = ["star", "favorite", "follow", "watch"]
+negative_feedback_types = ["skip", "not-interested"]
+read_feedback_types = ["read"]
+
+[recommend.ranker]
+# type=none can only name one source. Logged-in /api/recommend uses collaborative first.
+# If that source is short, fallback fills latest, then the weekly star board, then similar items.
+type = "none"
+recommenders = ["collaborative"]
+
+[recommend.fallback]
+recommenders = ["latest", "non-personalized/most_starred_weekly", "item-to-item/neighbors"]
+
+[recommend.collaborative]
+type = "mf"
+fit_period = "60m"
+fit_epoch = 50
+
+[[recommend.non-personalized]]
+name = "most_starred_weekly"
+score = "count(feedback, .FeedbackType == 'star')"
+filter = "(now() - item.Timestamp).Hours() < 168"
+
+[[recommend.item-to-item]]
+# Neighbors come from people who starred or favorited the same works.
+# There is no embedding column on VideoPictureProject, so type = "users".
+name = "neighbors"
+type = "users"
+column = ""
